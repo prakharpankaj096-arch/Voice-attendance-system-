@@ -1,0 +1,20 @@
+# Voice Service — Python dependencies
+# Install with: pip install -r requirements.txt
+
+# Web framework
+fastapi
+uvicorn[standard]
+python-multipart          # needed for FastAPI file uploads (audio blobs)
+
+# Speech-to-text
+openai-whisper            # local Whisper (no API key needed)
+
+# Speaker verification (Week 2)
+speechbrain
+torchaudio
+soundfile
+
+# Audio recording (for standalone test scripts)
+sounddevice               # cross-platform mic recording
+numpy
+scipy

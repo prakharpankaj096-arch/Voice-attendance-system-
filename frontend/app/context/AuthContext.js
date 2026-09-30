@@ -11,19 +11,8 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(null);    // JWT access token
   const [loading, setLoading] = useState(true); // true while restoring session
 
-  // ── Restore session on mount ─────────────────────────────────────
-  useEffect(() => {
-    const savedToken = localStorage.getItem("auth_token");
-    if (savedToken) {
-      setToken(savedToken);
-      fetchMe(savedToken).finally(() => setLoading(false));
-    } else {
-      setLoading(false);
-    }
-  }, []);
-
   // ── Fetch current user info from /auth/me ────────────────────────
-  const fetchMe = async (accessToken) => {
+  const fetchMe = useCallback(async (accessToken) => {
     try {
       const res = await fetch(`${BACKEND_URL}/auth/me`, {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -33,32 +22,95 @@ export function AuthProvider({ children }) {
       setUser(data.user);
     } catch {
       // Token is invalid/expired — clear session
-      localStorage.removeItem("auth_token");
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("auth_token");
+      }
       setToken(null);
       setUser(null);
     }
-  };
+  }, []);
+
+  // ── Restore session on mount ─────────────────────────────────────
+  useEffect(() => {
+    queueMicrotask(async () => {
+      const savedToken = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
+      if (savedToken) {
+        setToken(savedToken);
+        try {
+          await fetchMe(savedToken);
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        setLoading(false);
+      }
+    });
+  }, [fetchMe]);
 
   // ── Login ────────────────────────────────────────────────────────
-  const login = useCallback(async (email, password) => {
+  const login = useCallback(async (identifierOrPayload, maybePassword, maybeRole) => {
+    let payload = {};
+
+    if (typeof identifierOrPayload === "object" && identifierOrPayload !== null) {
+      payload = identifierOrPayload;
+    } else {
+      const identifier = String(identifierOrPayload || "").trim();
+      const password = maybePassword;
+      const role = maybeRole || "student";
+
+      if (role === "admin") {
+        payload = { admin_id: identifier, password, role: "admin" };
+      } else if (role === "student") {
+        payload = { roll_number: identifier, password, role: "student" };
+      } else if (identifier.includes("@")) {
+        payload = { email: identifier, password };
+      } else {
+        payload = { roll_number: identifier, password, role: "student" };
+      }
+    }
+
     const res = await fetch(`${BACKEND_URL}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(payload),
     });
 
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || "Login failed");
 
-    const accessToken = data.session.access_token;
-    localStorage.setItem("auth_token", accessToken);
-    setToken(accessToken);
-    setUser({ ...data.user, is_admin: false, role: "student" });
+    const accessToken = data.session?.access_token;
+    if (accessToken && typeof window !== "undefined") {
+      localStorage.setItem("auth_token", accessToken);
+      setToken(accessToken);
+    }
 
-    // Fetch full user info (including admin status) in background
-    await fetchMe(accessToken);
+    if (data.user) {
+      setUser({
+        ...data.user,
+        is_admin: data.user.is_admin ?? data.user.role === "admin",
+      });
+    }
+
+    // Refresh claims in background if token exists
+    if (accessToken) {
+      await fetchMe(accessToken);
+    }
 
     return data;
+  }, [fetchMe]);
+
+  // ── Set Session (e.g. after first-time activation) ───────────────
+  const setSession = useCallback((session, userData) => {
+    if (session?.access_token && typeof window !== "undefined") {
+      localStorage.setItem("auth_token", session.access_token);
+      setToken(session.access_token);
+    }
+    if (userData) {
+      setUser({
+        ...userData,
+        is_admin: userData.is_admin ?? userData.role === "admin",
+      });
+    }
   }, []);
 
   // ── Signup ───────────────────────────────────────────────────────
@@ -82,14 +134,24 @@ export function AuthProvider({ children }) {
     }
 
     return data;
-  }, []);
+  }, [fetchMe]);
 
   // ── Logout ───────────────────────────────────────────────────────
   const logout = useCallback(() => {
-    localStorage.removeItem("auth_token");
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("auth_token");
+    }
     setToken(null);
     setUser(null);
   }, []);
+
+  // ── Refresh user info ─────────────────────────────────────────────
+  const refreshUser = useCallback(async () => {
+    const activeToken = token || (typeof window !== "undefined" ? localStorage.getItem("auth_token") : null);
+    if (activeToken) {
+      await fetchMe(activeToken);
+    }
+  }, [token, fetchMe]);
 
   const value = {
     user,
@@ -98,8 +160,10 @@ export function AuthProvider({ children }) {
     isLoggedIn: !!user,
     isAdmin: user?.is_admin || false,
     login,
+    setSession,
     signup,
     logout,
+    refreshUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

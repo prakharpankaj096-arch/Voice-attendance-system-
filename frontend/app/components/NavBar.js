@@ -11,6 +11,7 @@ import {
   LogOut,
   User,
   Loader2,
+  KeyRound,
 } from "lucide-react";
 
 const navLinks = [
@@ -21,7 +22,7 @@ const navLinks = [
 ];
 
 export default function NavBar() {
-  const { user, isLoggedIn, loading, logout } = useAuth();
+  const { user, isLoggedIn, isAdmin, loading, logout } = useAuth();
 
   return (
     <nav className="bg-white border-b border-slate-200 sticky top-0 z-50">
@@ -53,8 +54,17 @@ export default function NavBar() {
             <div className="flex items-center gap-2 ml-3">
               <span className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-500">
                 <User className="w-4 h-4" />
-                {user.email}
+                {user.name || user.roll_number || user.email}
               </span>
+              {!isAdmin && (
+                <Link
+                  href="/change-password"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                >
+                  <KeyRound className="w-4 h-4" />
+                  Change Password
+                </Link>
+              )}
               <button
                 onClick={logout}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-rose-600 hover:bg-rose-50 transition-colors"

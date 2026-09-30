@@ -39,6 +39,14 @@ async function requireAuth(req, res, next) {
     req.user = {
       id: data.user.id,
       email: data.user.email,
+      role: data.user.role || data.user.app_metadata?.role || data.user.user_metadata?.role || null,
+      user_metadata: data.user.user_metadata || {},
+      app_metadata: data.user.app_metadata || {},
+      student_id:
+        data.user.user_metadata?.student_id ||
+        data.user.app_metadata?.student_id ||
+        null,
+      roll_number: data.user.user_metadata?.roll_number || null,
     };
 
     next();
@@ -64,12 +72,20 @@ async function requireAdmin(req, res, next) {
     });
   }
 
+  if (
+    req.user.role === 'admin' ||
+    req.user.app_metadata?.role === 'admin' ||
+    req.user.user_metadata?.role === 'admin'
+  ) {
+    return next();
+  }
+
   try {
     const { data, error } = await supabase
       .from('admins')
       .select('id, role')
-      .eq('id', req.user.id)
-      .single();
+      .or(`id.eq.${req.user.id},email.eq.${req.user.email || 'none'}`)
+      .maybeSingle();
 
     if (error || !data) {
       return res.status(403).json({

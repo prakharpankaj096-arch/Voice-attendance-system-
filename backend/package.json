@@ -5,7 +5,8 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon src/index.js",
+    "test": "jest --forceExit --detectOpenHandles --verbose"
   },
   "keywords": [],
   "author": "",
@@ -17,5 +18,10 @@
     "express": "^5.2.1",
     "multer": "^2.3.0",
     "nodemon": "^3.1.14"
+  },
+  "devDependencies": {
+    "fast-check": "^4.10.2",
+    "jest": "^30.5.2",
+    "supertest": "^7.3.0"
   }
 }
